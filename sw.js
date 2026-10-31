@@ -1,6 +1,6 @@
 // Lets the app open with no internet connection. Network first, cached copy as fallback.
 // Set pictures come from Rebrickable's server and are left to the browser's normal cache.
-const CACHE = 'lego-tracker-v2';
+const CACHE = 'lego-tracker-v3';
 const SHELL = ['./', 'index.html', 'sets.json', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

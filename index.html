@@ -19,11 +19,11 @@
     --line: #dcdcdc;
     --paper: #ffffff;
     --brick: #c8102e;
-    --sh: #f08a24;   /* Sarah has: orange */
-    --dh: #d7262b;   /* Dan has: red */
+    --sh: #f08a24;   /* Got: orange */
     --rh: #3f9b4a;   /* Rufus has: green */
     --sw: #e8629a;   /* Sarah wants: pink */
     --dw: #2f7fd8;   /* Dan wants: blue */
+    --rw: #d7262b;   /* Rufus wants: red */
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -63,10 +63,10 @@
   }
   .chip.on { color: #fff; }
   .chip.on[data-k=sh] { background: var(--sh); border-color: var(--sh); }
-  .chip.on[data-k=dh] { background: var(--dh); border-color: var(--dh); }
   .chip.on[data-k=rh] { background: var(--rh); border-color: var(--rh); }
   .chip.on[data-k=sw] { background: var(--sw); border-color: var(--sw); }
   .chip.on[data-k=dw] { background: var(--dw); border-color: var(--dw); }
+  .chip.on[data-k=rw] { background: var(--rw); border-color: var(--rw); }
   #summary { font-size: 13px; opacity: .95; margin-top: 8px; }
   #sync { font-size: 13px; opacity: .95; margin-top: 2px; }
   #msg { font-size: 13px; margin-top: 4px; min-height: 1em; }
@@ -106,10 +106,10 @@
   }
   td.btn button.on { color: #fff; }
   td.btn button.on[data-k=sh] { background: var(--sh); border-color: var(--sh); }
-  td.btn button.on[data-k=dh] { background: var(--dh); border-color: var(--dh); }
   td.btn button.on[data-k=rh] { background: var(--rh); border-color: var(--rh); }
   td.btn button.on[data-k=sw] { background: var(--sw); border-color: var(--sw); }
   td.btn button.on[data-k=dw] { background: var(--dw); border-color: var(--dw); }
+  td.btn button.on[data-k=rw] { background: var(--rw); border-color: var(--rw); }
   #empty, #more { padding: 24px; text-align: center; color: var(--muted); }
   footer {
     font-size: 11px; color: var(--muted); text-align: center;
@@ -186,8 +186,8 @@
         <th class="sortable wide" data-key="num">Set no. <span class="arrow"></span></th>
         <th class="sortable wide" data-key="year">Year <span class="arrow"></span></th>
         <th class="sortable wide" data-key="theme">Theme <span class="arrow"></span></th>
-        <th class="who">Sarah has</th><th class="who">Dan has</th><th class="who">Rufus has</th>
-        <th class="who">Sarah wants</th><th class="who">Dan wants</th>
+        <th class="who">Got</th><th class="who">Rufus has</th>
+        <th class="who">Sarah wants</th><th class="who">Dan wants</th><th class="who">Rufus wants</th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
@@ -195,7 +195,7 @@
   <div id="empty" hidden>No sets match.</div>
   <div id="more" hidden>Loading more…</div>
 </main>
-<footer>V.1. Concept by dan-suri-weather, coded by Claude Code.
+<footer>V.2. Concept by dan-suri-weather, coded by Claude Code.
   Set list and pictures from <a href="https://rebrickable.com" target="_blank" rel="noopener">Rebrickable</a><span id="updated"></span>.</footer>
 
 <script>
@@ -206,9 +206,10 @@ const K_STATUS = 'lt.status', K_CODE = 'lt.code', K_PENDING = 'lt.pending';
 // Shared marks: the Google Sheet's web app address (see SETUP-SHARING.txt).
 // Left empty, marks are kept on this device only.
 const SYNC_URL = 'https://script.google.com/macros/s/AKfycbxxpo9WOlMWcncnYyqzChnSV2FAwgTObWbnt1AD1Tp0z_i_J5aAQI5jEKPF3oGYQYNw/exec';
+// "Got" keeps the key of the old "Sarah has" column, so its marks carry over. "Dan has" (dh) was dropped.
 const WHO = [
-  { k: 'sh', label: 'Sarah has' }, { k: 'dh', label: 'Dan has' }, { k: 'rh', label: 'Rufus has' },
-  { k: 'sw', label: 'Sarah wants' }, { k: 'dw', label: 'Dan wants' },
+  { k: 'sh', label: 'Got', old: 'Sarah has' }, { k: 'rh', label: 'Rufus has' },
+  { k: 'sw', label: 'Sarah wants' }, { k: 'dw', label: 'Dan wants' }, { k: 'rw', label: 'Rufus wants' },
 ];
 const PAGE = 150;   // rows added at a time as you scroll
 
@@ -468,7 +469,8 @@ function parseCsv(text) {
 async function importCsv(text) {
   const [head, ...rows] = parseCsv(text);
   const col = name => head.findIndex(h => h.trim().toLowerCase() === name.toLowerCase());
-  const iId = col('Set number'), cols = WHO.map(w => [w.k, col(w.label)]);
+  const iId = col('Set number');
+  const cols = WHO.map(w => [w.k, col(w.label) >= 0 || !w.old ? col(w.label) : col(w.old)]);   // older exports say "Sarah has"
   if (iId < 0 || cols.every(([, i]) => i < 0)) throw new Error('this does not look like a Lego Tracker export');
   const yes = v => (v || '').trim().toUpperCase() === 'Y';
   const fresh = {};
@@ -554,6 +556,13 @@ $('importFile').addEventListener('change', async e => {
 (async function init() {
   status = load(K_STATUS, {});
   pending = load(K_PENDING, []);
+  // Drop marks from columns that no longer exist (the old "Dan has").
+  const keys = new Set(WHO.map(w => w.k));
+  for (const id in status) {
+    for (const k in status[id]) if (!keys.has(k)) delete status[id][k];
+    if (!Object.keys(status[id]).length) delete status[id];
+  }
+  pending = pending.filter(c => keys.has(c.k));
   say('Loading sets…', true);
   try {
     const data = await (await fetch('sets.json')).json();
