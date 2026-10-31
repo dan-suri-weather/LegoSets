@@ -1,0 +1,71 @@
+SHARING MARKS WITH THE FAMILY (one-off, about 10 minutes, on the laptop)
+=======================================================================
+
+The marks are kept in a Google Sheet in your Google account. Nobody needs to open the sheet:
+the app looks exactly the same, it just saves each tap to the sheet and loads everyone's
+marks from it. You can open the sheet any time to see or tidy the marks.
+
+
+1. MAKE THE SHEET
+-----------------
+a. Signed in to your Google account, go to https://sheets.new
+b. Click "Untitled spreadsheet" at the top left and name it Lego Tracker.
+   Leave the sheet itself empty; the headings get added automatically.
+
+
+2. ADD THE SCRIPT
+-----------------
+a. In the sheet, choose Extensions > Apps Script. A new tab opens with a file called Code.gs.
+b. Delete everything in it.
+c. Open google-sheet\Code.gs from this folder in Notepad, copy all of it, and paste it in.
+d. On the line   const FAMILY_CODE = 'change-me';
+   replace change-me with a family code of your own, e.g. 'redbrick42'. Keep the quote marks.
+   Anyone with this code can change the marks, so don't make it too obvious.
+e. Click the Save icon (the floppy disk).
+
+
+3. PUT IT ONLINE
+----------------
+a. Click the blue Deploy button (top right) > New deployment.
+b. Click the gear icon next to "Select type" and choose Web app.
+c. Fill in:
+     Description:      Lego Tracker
+     Execute as:       Me
+     Who has access:   Anyone
+   then click Deploy.
+d. Google asks you to authorise it: click Authorize access and pick your account.
+   You'll see "Google hasn't verified this app". That's normal for your own script:
+   click Advanced, then "Go to Lego Tracker (unsafe)", then Allow.
+   (The script can only use this one sheet.)
+e. Copy the Web app URL. It looks like https://script.google.com/macros/s/AKfy.../exec
+
+
+4. CONNECT THE APP
+------------------
+Paste the Web app URL to Claude, or put it in index.html yourself, on the line
+   const SYNC_URL = '';
+so it reads
+   const SYNC_URL = 'https://script.google.com/macros/s/AKfy.../exec';
+Then upload index.html to GitHub as usual.
+
+
+5. ON EACH PHONE / LAPTOP
+-------------------------
+The first time the app opens it asks for the family code. Type it in once.
+If that device already has marks on it, the app offers to add them to the shared list.
+The line under the counts shows "Shared with the family · up to date at ...".
+
+
+GOOD TO KNOW
+------------
+- Each tap is saved to the sheet straight away. Two people tapping at the same time is fine.
+- The app picks up the others' changes when it opens, when you switch back to it,
+  and every 2 minutes while it's open.
+- Without a signal the app still works. Taps wait on the device and are sent later.
+- Restore from .csv now replaces the marks for everyone, so it asks first.
+  Export to .csv now and then as a backup.
+- To change the family code later: edit FAMILY_CODE in Apps Script, Save, then
+  Deploy > Manage deployments > pencil icon > Version: New version > Deploy.
+  The web address stays the same. Each device will ask for the new code.
+- If you ever change the script, deploy it the same way (Manage deployments > New version).
+  "New deployment" would make a new web address that the app doesn't know about.

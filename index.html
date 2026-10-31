@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lego Tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lego">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#c8102e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root {
+    --ink: #2b2b2b;
+    --muted: #6b6b6b;
+    --line: #dcdcdc;
+    --paper: #ffffff;
+    --brick: #c8102e;
+    --sh: #f08a24;   /* Sarah has: orange */
+    --dh: #d7262b;   /* Dan has: red */
+    --rh: #3f9b4a;   /* Rufus has: green */
+    --sw: #e8629a;   /* Sarah wants: pink */
+    --dw: #2f7fd8;   /* Dan wants: blue */
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink); background: var(--paper);
+    display: flex; flex-direction: column;
+    -webkit-text-size-adjust: 100%;
+  }
+  header {
+    background: var(--brick); color: #fff;
+    padding: calc(env(safe-area-inset-top) + 10px) 12px 10px;
+  }
+  h1 { margin: 0 0 8px; font: 700 1.35rem -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; letter-spacing: .02em; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .bar input[type=search] {
+    flex: 1 1 180px; min-width: 0; font-size: 16px; padding: 9px 10px;
+    border: 0; border-radius: 8px;
+  }
+  .bar select, .bar button {
+    font-size: 15px; padding: 9px 12px; border-radius: 8px; border: 0;
+    background: #fff; color: var(--ink);
+  }
+  .bar button { background: #f1f1f1; }
+  .bar button:active { background: #cfcfcf; }
+  .bar button.open { background: #fff; box-shadow: inset 0 -3px 0 var(--ink); }
+  .bar button.active { font-weight: 700; }
+  .panel {
+    margin-top: 8px; padding: 10px; border-radius: 8px;
+    background: rgba(0, 0, 0, .18);
+  }
+  .panel label { font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 14px; padding: 8px 12px; border-radius: 18px; cursor: pointer;
+    border: 2px solid #fff; background: #fff; color: var(--ink);
+  }
+  .chip.on { color: #fff; }
+  .chip.on[data-k=sh] { background: var(--sh); border-color: var(--sh); }
+  .chip.on[data-k=dh] { background: var(--dh); border-color: var(--dh); }
+  .chip.on[data-k=rh] { background: var(--rh); border-color: var(--rh); }
+  .chip.on[data-k=sw] { background: var(--sw); border-color: var(--sw); }
+  .chip.on[data-k=dw] { background: var(--dw); border-color: var(--dw); }
+  #summary { font-size: 13px; opacity: .95; margin-top: 8px; }
+  #sync { font-size: 13px; opacity: .95; margin-top: 2px; }
+  #msg { font-size: 13px; margin-top: 4px; min-height: 1em; }
+
+  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: #ececec; font-size: 13px; text-align: left;
+    padding: 8px 6px; border-bottom: 1px solid var(--line);
+    user-select: none; -webkit-user-select: none;
+  }
+  thead th.who { text-align: center; font-size: 12px; line-height: 1.15; padding-left: 2px; padding-right: 2px; }
+  .sortable { cursor: pointer; }
+  .narrow-only { display: none; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  th .arrow { color: var(--muted); }
+  td {
+    padding: 6px; border-bottom: 1px solid var(--line);
+    vertical-align: middle; overflow-wrap: break-word; word-wrap: break-word;
+    font-size: 15px; line-height: 1.3;
+  }
+  col.c-pic { width: 76px; }
+  col.c-num { width: 82px; }
+  col.c-year { width: 54px; }
+  col.c-theme { width: 22%; }
+  col.c-btn { width: 56px; }
+  td.num, td.year { color: var(--muted); font-variant-numeric: tabular-nums; }
+  td a { color: inherit; text-decoration-color: #9a9a9a; }
+  td.pic { padding: 4px; text-align: center; }
+  td.pic a { display: block; width: 64px; height: 64px; }
+  td.pic img { width: 64px; height: 64px; object-fit: contain; display: block; }
+  td.btn { padding: 5px 3px; text-align: center; }
+  td.btn button {
+    width: 100%; min-height: 40px; font-size: 18px; border-radius: 7px;
+    border: 1px solid #bdbdbd; background: #fafafa; color: transparent; padding: 0;
+  }
+  td.btn button.on { color: #fff; }
+  td.btn button.on[data-k=sh] { background: var(--sh); border-color: var(--sh); }
+  td.btn button.on[data-k=dh] { background: var(--dh); border-color: var(--dh); }
+  td.btn button.on[data-k=rh] { background: var(--rh); border-color: var(--rh); }
+  td.btn button.on[data-k=sw] { background: var(--sw); border-color: var(--sw); }
+  td.btn button.on[data-k=dw] { background: var(--dw); border-color: var(--dw); }
+  #empty, #more { padding: 24px; text-align: center; color: var(--muted); }
+  footer {
+    font-size: 11px; color: var(--muted); text-align: center;
+    padding: 5px 12px calc(env(safe-area-inset-bottom) + 5px);
+    border-top: 1px solid var(--line); background: #f7f7f7;
+  }
+  footer a { color: inherit; }
+  /* Phones: number, year and theme move under the name to give it room. */
+  @media (max-width: 700px) {
+    col.c-pic { width: 52px; }
+    col.c-btn { width: 42px; }
+    col.c-num, col.c-year, col.c-theme, .wide { display: none; }
+    .narrow-only { display: inline; }
+    div.narrow-only { display: block; }
+    th, td { padding-left: 3px; padding-right: 3px; }
+    thead th.who { font-size: 10px; }
+    td { font-size: 14px; }
+    td.pic a, td.pic img { width: 46px; height: 46px; }
+    td.btn button { min-height: 36px; font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lego Tracker</h1>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Search name, set number or theme" autocomplete="off" autocorrect="off">
+    <button id="themeBtn" data-panel="themePanel">Theme &amp; decade</button>
+    <button id="whoBtn" data-panel="whoPanel">Has / wants</button>
+  </div>
+  <div id="themePanel" class="panel" hidden>
+    <div class="bar">
+      <select id="fTheme" aria-label="Theme"><option value="">All themes</option></select>
+      <select id="fDecade" aria-label="Decade"><option value="">All decades</option></select>
+      <button id="clearTheme">Clear</button>
+    </div>
+  </div>
+  <div id="whoPanel" class="panel" hidden>
+    <div class="chips" id="chips"></div>
+    <div class="bar" style="margin-top:8px">
+      <label>Show sets that
+        <select id="fMatch">
+          <option value="any">match any of these</option>
+          <option value="all">match all of these</option>
+          <option value="none">match none of these</option>
+        </select>
+      </label>
+      <button id="clearWho">Clear</button>
+    </div>
+  </div>
+  <div class="bar" style="margin-top:8px">
+    <button id="exportBtn">Export to .csv</button>
+    <button id="importBtn">Restore from .csv</button>
+    <button id="codeBtn" hidden>Family code</button>
+    <input id="importFile" type="file" accept=".csv,text/csv" hidden>
+  </div>
+  <div id="summary"></div>
+  <div id="sync" hidden></div>
+  <div id="msg"></div>
+</header>
+<main id="main">
+  <table>
+    <colgroup>
+      <col class="c-pic"><col class="c-name"><col class="c-num"><col class="c-year"><col class="c-theme">
+      <col class="c-btn"><col class="c-btn"><col class="c-btn"><col class="c-btn"><col class="c-btn">
+    </colgroup>
+    <thead>
+      <tr>
+        <th></th>
+        <th><span class="sortable" data-key="name">Name <span class="arrow"></span></span><span class="narrow-only">
+          · <span class="sortable" data-key="num">No. <span class="arrow"></span></span>
+          · <span class="sortable" data-key="year">Year <span class="arrow"></span></span>
+          · <span class="sortable" data-key="theme">Theme <span class="arrow"></span></span></span></th>
+        <th class="sortable wide" data-key="num">Set no. <span class="arrow"></span></th>
+        <th class="sortable wide" data-key="year">Year <span class="arrow"></span></th>
+        <th class="sortable wide" data-key="theme">Theme <span class="arrow"></span></th>
+        <th class="who">Sarah has</th><th class="who">Dan has</th><th class="who">Rufus has</th>
+        <th class="who">Sarah wants</th><th class="who">Dan wants</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="empty" hidden>No sets match.</div>
+  <div id="more" hidden>Loading more…</div>
+</main>
+<footer>V.1. Concept by dan-suri-weather, coded by Claude Code.
+  Set list and pictures from <a href="https://rebrickable.com" target="_blank" rel="noopener">Rebrickable</a><span id="updated"></span>.</footer>
+
+<script>
+const IMG = 'https://cdn.rebrickable.com/media/sets/';
+const THUMB = 'https://cdn.rebrickable.com/media/thumbs/sets/';
+const SET_PAGE = 'https://rebrickable.com/sets/';
+const K_STATUS = 'lt.status', K_CODE = 'lt.code', K_PENDING = 'lt.pending';
+// Shared marks: the Google Sheet's web app address (see SETUP-SHARING.txt).
+// Left empty, marks are kept on this device only.
+const SYNC_URL = 'https://script.google.com/macros/s/AKfycbxxpo9WOlMWcncnYyqzChnSV2FAwgTObWbnt1AD1Tp0z_i_J5aAQI5jEKPF3oGYQYNw/exec';
+const WHO = [
+  { k: 'sh', label: 'Sarah has' }, { k: 'dh', label: 'Dan has' }, { k: 'rh', label: 'Rufus has' },
+  { k: 'sw', label: 'Sarah wants' }, { k: 'dw', label: 'Dan wants' },
+];
+const PAGE = 150;   // rows added at a time as you scroll
+
+// sets: [{id, name, year, theme, sub, img, base, variant, numKey}]; status: {id: {sh: 1, dw: 1, ...}}
+// Always opens with the newest sets first.
+let sets = [], byId = new Map(), status = {}, sort = { key: 'year', dir: -1 };
+let list = [], shown = 0;
+// Taps not yet saved to the shared sheet: [{id, k, v}]. Kept on the device so they survive going offline.
+let pending = [];
+const whoOn = new Set();
+
+const $ = id => document.getElementById(id);
+function load(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch (e) { return fallback; }
+}
+function save() {
+  try {
+    localStorage.setItem(K_STATUS, JSON.stringify(status));
+    localStorage.setItem(K_PENDING, JSON.stringify(pending));
+  } catch (e) { say('Could not save on this device: ' + e.message); }
+}
+// Shows a message under the buttons, which clears itself after a few seconds unless `keep` is set.
+let sayTimer;
+function say(t, keep) {
+  $('msg').textContent = t;
+  clearTimeout(sayTimer);
+  if (!keep) sayTimer = setTimeout(() => { $('msg').textContent = ''; }, 6000);
+}
+
+// Rebrickable numbers are "75192-1": the Lego number plus a version suffix.
+// Numeric numbers sort as numbers; ones with letters (e.g. "K8672") come after them.
+function toSet([id, name, year, theme, sub, parts, img]) {
+  const dash = id.lastIndexOf('-');
+  const base = dash > 0 ? id.slice(0, dash) : id, variant = dash > 0 ? id.slice(dash + 1) : '';
+  return { id, name, year, theme, sub, parts, img: img || id + '.jpg', base, variant,
+    numKey: /^\d+$/.test(base) ? +base : Infinity, label: variant && variant !== '1' ? id : base };
+}
+
+const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’]/g, "'").toLowerCase();
+const cmpNum = (a, b) => a.numKey - b.numKey || (a.base < b.base ? -1 : a.base > b.base ? 1 : 0)
+  || (+a.variant || 0) - (+b.variant || 0);
+const SORTS = {
+  name: (a, b) => a.sortName.localeCompare(b.sortName) || cmpNum(a, b),
+  num: cmpNum,
+  year: (a, b) => a.year - b.year || cmpNum(a, b),
+  theme: (a, b) => a.theme.localeCompare(b.theme) || a.sub.localeCompare(b.sub) || a.sortName.localeCompare(b.sortName),
+};
+
+function visibleSets() {
+  const q = norm($('q').value.trim());
+  const theme = $('fTheme').value, decade = $('fDecade').value, match = $('fMatch').value;
+  const keys = [...whoOn];
+  const out = sets.filter(s => {
+    if (theme && s.theme !== theme) return false;
+    if (decade && Math.floor(s.year / 10) * 10 !== +decade) return false;
+    if (keys.length) {
+      const st = status[s.id] || {};
+      const hits = keys.filter(k => st[k]).length;
+      if (match === 'any' && !hits) return false;
+      if (match === 'all' && hits < keys.length) return false;
+      if (match === 'none' && hits) return false;
+    }
+    if (!q) return true;
+    if (/^[\d-]+$/.test(q)) return s.id.startsWith(q) || s.searchText.includes(q);
+    return s.searchText.includes(q);
+  });
+  const cmp = SORTS[sort.key];
+  // Within a year, codes with letters (promos, "STAR-1" etc.) go after the numbered sets either way round.
+  const lettered = s => s.numKey === Infinity;
+  out.sort((a, b) => sort.key === 'year' && a.year === b.year && lettered(a) !== lettered(b)
+    ? (lettered(a) ? 1 : -1) : cmp(a, b) * sort.dir);
+  return out;
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function rowHtml(s) {
+  const st = status[s.id] || {};
+  const theme = esc(s.theme) + (s.sub ? `<div class="sub">${esc(s.sub)}</div>` : '');
+  return `<tr data-id="${esc(s.id)}">
+    <td class="pic"><a href="${IMG}${esc(s.img)}" target="_blank" rel="noopener"><img loading="lazy" alt=""
+      src="${THUMB}${esc(s.img)}/250x250p.jpg" onerror="this.onerror=null;this.src='${IMG}${esc(s.img)}'"></a></td>
+    <td><a href="${SET_PAGE}${encodeURIComponent(s.id)}/" target="_blank" rel="noopener">${esc(s.name)}</a>
+      <div class="sub narrow-only">${esc(s.label)} · ${s.year} · ${esc(s.theme)}${s.sub ? ' – ' + esc(s.sub) : ''}</div></td>
+    <td class="num wide">${esc(s.label)}</td>
+    <td class="year wide">${s.year}</td>
+    <td class="wide">${theme}</td>
+    ${WHO.map(w => `<td class="btn"><button data-k="${w.k}" class="${st[w.k] ? 'on' : ''}" aria-label="${w.label}" aria-pressed="${!!st[w.k]}">✓</button></td>`).join('')}
+  </tr>`;
+}
+
+// Rows are added a page at a time as you scroll, so 18,000 sets don't all load at once.
+function render() {
+  list = visibleSets(); shown = 0;
+  $('rows').innerHTML = '';
+  $('main').scrollTop = 0;
+  more();
+  $('empty').hidden = list.length > 0;
+  for (const th of document.querySelectorAll('.sortable')) {
+    th.querySelector('.arrow').textContent = th.dataset.key === sort.key ? (sort.dir > 0 ? '▲' : '▼') : '';
+  }
+  summary();
+  const nTheme = !!$('fTheme').value + !!$('fDecade').value;
+  $('themeBtn').textContent = 'Theme & decade' + (nTheme ? ` (${nTheme})` : '');
+  $('themeBtn').classList.toggle('active', nTheme > 0);
+  $('whoBtn').textContent = 'Has / wants' + (whoOn.size ? ` (${whoOn.size})` : '');
+  $('whoBtn').classList.toggle('active', whoOn.size > 0);
+}
+function more() {
+  if (shown >= list.length) { $('more').hidden = true; return; }
+  $('rows').insertAdjacentHTML('beforeend', list.slice(shown, shown + PAGE).map(rowHtml).join(''));
+  shown = Math.min(shown + PAGE, list.length);
+  $('more').hidden = shown >= list.length;
+}
+function summary() {
+  const vals = Object.values(status);
+  $('summary').textContent = `${sets.length.toLocaleString()} sets · ` +
+    WHO.map(w => `${w.label} ${vals.filter(v => v[w.k]).length}`).join(' · ') +
+    (list.length !== sets.length ? ` · showing ${list.length.toLocaleString()}` : '');
+}
+
+function toggle(id, k, btn) {
+  const st = status[id] || (status[id] = {});
+  if (st[k]) delete st[k]; else st[k] = 1;
+  if (!Object.keys(st).length) delete status[id];
+  btn.classList.toggle('on', !!st[k]);
+  btn.setAttribute('aria-pressed', !!st[k]);
+  if (SYNC_URL) pending.push({ id, k, v: st[k] ? 1 : 0 });
+  save(); summary(); sync();
+}
+
+// Updates the boxes already on screen without re-sorting or jumping back to the top.
+function refreshMarks() {
+  for (const tr of $('rows').children) {
+    const st = status[tr.dataset.id] || {};
+    for (const b of tr.querySelectorAll('td.btn button')) {
+      b.classList.toggle('on', !!st[b.dataset.k]);
+      b.setAttribute('aria-pressed', !!st[b.dataset.k]);
+    }
+  }
+  summary();
+}
+
+// ---- shared marks (Google Sheet) ----
+const getCode = () => { try { return localStorage.getItem(K_CODE) || ''; } catch (e) { return ''; } };
+function setSync(t) { $('sync').textContent = t; }
+
+// Name, year and theme go to the sheet too, so it's readable when opened in Google Sheets.
+const infoOf = id => { const s = byId.get(id); return s ? [s.name, s.year, s.theme] : null; };
+
+// The body is sent as plain text, which Google Apps Script accepts from another website.
+async function post(body) {
+  const r = await fetch(SYNC_URL, { method: 'POST', body: JSON.stringify({ code: getCode(), ...body }) });
+  if (!r.ok) throw new Error('the shared list replied ' + r.status);
+  const res = await r.json();
+  if (res.error === 'wrong family code') {
+    try { localStorage.removeItem(K_CODE); } catch (e) {}
+    $('codeBtn').hidden = false;
+  }
+  if (res.error) throw new Error(res.error);
+  return res.marks;
+}
+
+// Sends any waiting taps, then takes everyone's marks from the sheet. Taps made while it was busy stay waiting.
+let syncing = false, syncAgain = false;
+async function sync() {
+  if (!SYNC_URL) return;
+  if (!getCode()) { setSync('Not shared yet: tap Family code to share marks with the family.'); return; }
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  const sent = pending.slice();
+  try {
+    const marks = await post({ changes: sent.map(c => ({ ...c, info: infoOf(c.id) })) });
+    pending = pending.slice(sent.length);
+    status = marks;
+    for (const c of pending) {   // keep taps made during the request on top of what came back
+      const st = status[c.id] || (status[c.id] = {});
+      if (c.v) st[c.k] = 1; else { delete st[c.k]; if (!Object.keys(st).length) delete status[c.id]; }
+    }
+    save(); refreshMarks();
+    setSync('Shared with the family · up to date at ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  } catch (e) {
+    setSync(e.message === 'wrong family code'
+      ? 'Wrong family code: tap Family code to enter it again.'
+      : `Can't reach the shared list just now` + (pending.length ? ` · ${pending.length} change${pending.length > 1 ? 's' : ''} waiting to be sent` : '') + '.');
+  } finally {
+    syncing = false;
+    if (syncAgain) { syncAgain = false; sync(); }
+  }
+}
+
+function askCode() {
+  const code = (prompt('Enter the family code to share marks with the family:', getCode()) || '').trim();
+  if (!code) return;
+  try { localStorage.setItem(K_CODE, code); } catch (e) {}
+  $('codeBtn').hidden = true;
+  // Marks made on this device before it was shared would otherwise be replaced by the shared ones.
+  const mine = Object.entries(status);
+  if (mine.length && !pending.length && confirm(`Add the ${mine.length} set${mine.length > 1 ? 's' : ''} marked on this device to the shared list?`)) {
+    for (const [id, st] of mine) for (const k in st) pending.push({ id, k, v: 1 });
+    save();
+  }
+  sync();
+}
+
+// ---- CSV export / restore ----
+const csvCell = v => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+
+// Exports every set that has at least one mark (including any that have since left Rebrickable's list).
+function exportCsv() {
+  const head = ['Set number', 'Name', 'Year', 'Theme', 'Sub-theme', ...WHO.map(w => w.label), 'Link'];
+  const ids = Object.keys(status).sort((a, b) => {
+    const x = byId.get(a), y = byId.get(b);
+    return x && y ? cmpNum(x, y) : a.localeCompare(b);
+  });
+  const rows = ids.map(id => {
+    const s = byId.get(id) || { name: '', year: '', theme: '', sub: '' }, st = status[id];
+    return [id, s.name, String(s.year), s.theme, s.sub, ...WHO.map(w => st[w.k] ? 'Y' : ''),
+      SET_PAGE + id + '/'].map(csvCell).join(',');
+  });
+  const csv = '﻿' + [head.join(','), ...rows].join('\r\n');
+  const name = 'lego-tracker-' + new Date().toISOString().slice(0, 10) + '.csv';
+  const file = new File([csv], name, { type: 'text/csv' });
+  // On iPad/iPhone the share sheet lets you save to Files, Mail it, etc.
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: name }).catch(() => {});
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') q = false;
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+// Replaces all marks with the ones in a file made by "Export to .csv" (for everyone, when shared).
+async function importCsv(text) {
+  const [head, ...rows] = parseCsv(text);
+  const col = name => head.findIndex(h => h.trim().toLowerCase() === name.toLowerCase());
+  const iId = col('Set number'), cols = WHO.map(w => [w.k, col(w.label)]);
+  if (iId < 0 || cols.every(([, i]) => i < 0)) throw new Error('this does not look like a Lego Tracker export');
+  const yes = v => (v || '').trim().toUpperCase() === 'Y';
+  const fresh = {};
+  for (const r of rows) {
+    let id = (r[iId] || '').trim();
+    if (!id) continue;
+    if (!byId.has(id) && byId.has(id + '-1')) id += '-1';   // "75192" means "75192-1"
+    const st = {};
+    for (const [k, i] of cols) if (i >= 0 && yes(r[i])) st[k] = 1;
+    if (Object.keys(st).length) fresh[id] = st;
+  }
+  if (SYNC_URL && getCode()) {
+    const changes = [];
+    for (const id in fresh) for (const k in fresh[id]) changes.push({ id, k, v: 1, info: infoOf(id) });
+    await post({ replace: true, changes });
+    pending = [];
+  }
+  status = fresh;
+  save(); render();
+  say(`Restored marks for ${Object.keys(status).length} sets.`);
+}
+
+// ---- filters ----
+function fillFilters() {
+  const counts = new Map();
+  for (const s of sets) counts.set(s.theme, (counts.get(s.theme) || 0) + 1);
+  $('fTheme').insertAdjacentHTML('beforeend', [...counts].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([t, n]) => `<option value="${esc(t)}">${esc(t)} (${n})</option>`).join(''));
+  const decades = [...new Set(sets.map(s => Math.floor(s.year / 10) * 10))].sort();
+  $('fDecade').insertAdjacentHTML('beforeend', decades.map(d => `<option value="${d}">${d}s</option>`).join(''));
+  $('chips').innerHTML = WHO.map(w => `<button class="chip" data-k="${w.k}">${w.label}</button>`).join('');
+}
+
+// ---- events ----
+$('rows').addEventListener('click', e => {
+  const btn = e.target.closest('td.btn button');
+  if (btn) toggle(btn.closest('tr').dataset.id, btn.dataset.k, btn);
+});
+for (const th of document.querySelectorAll('.sortable')) {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    sort = sort.key === key ? { key, dir: -sort.dir } : { key, dir: 1 };
+    save(); render();
+  });
+}
+for (const b of [$('themeBtn'), $('whoBtn')]) {
+  b.addEventListener('click', () => {
+    const panel = $(b.dataset.panel), opening = panel.hidden;
+    for (const o of [$('themeBtn'), $('whoBtn')]) { $(o.dataset.panel).hidden = true; o.classList.remove('open'); }
+    panel.hidden = !opening; b.classList.toggle('open', opening);
+  });
+}
+$('chips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  if (whoOn.has(c.dataset.k)) whoOn.delete(c.dataset.k); else whoOn.add(c.dataset.k);
+  c.classList.toggle('on', whoOn.has(c.dataset.k));
+  render();
+});
+$('clearTheme').addEventListener('click', () => { $('fTheme').value = ''; $('fDecade').value = ''; render(); });
+$('clearWho').addEventListener('click', () => {
+  whoOn.clear(); $('fMatch').value = 'any';
+  for (const c of document.querySelectorAll('.chip')) c.classList.remove('on');
+  render();
+});
+let searchTimer;
+$('q').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 150); });
+for (const id of ['fTheme', 'fDecade', 'fMatch']) $(id).addEventListener('change', render);
+$('main').addEventListener('scroll', () => {
+  const m = $('main');
+  if (m.scrollTop + m.clientHeight > m.scrollHeight - 1500) more();
+});
+$('exportBtn').addEventListener('click', exportCsv);
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const who = SYNC_URL && getCode() ? ' for everyone in the family' : '';
+  if (!confirm('Replace all the has / wants marks' + who + ' with the ones in ' + f.name + '?')) { e.target.value = ''; return; }
+  try { await importCsv(await f.text()); } catch (err) { say('Could not restore: ' + err.message); }
+  e.target.value = '';
+});
+
+// ---- start ----
+(async function init() {
+  status = load(K_STATUS, {});
+  pending = load(K_PENDING, []);
+  say('Loading sets…', true);
+  try {
+    const data = await (await fetch('sets.json')).json();
+    sets = data.sets.map(toSet);
+    for (const s of sets) {
+      // Leading quotes/brackets and "The" are ignored when sorting by name, so "The Burrow" sorts under B.
+      s.sortName = norm(s.name).replace(/^[^a-z0-9]+/, '').replace(/^the\s+/, '');
+      s.searchText = norm([s.name, s.base, s.theme, s.sub].join(' | '));
+      byId.set(s.id, s);
+    }
+    $('updated').textContent = ', list updated ' + new Date(data.updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    say('');
+  } catch (e) { say('Could not load the set list. Connect to the internet and reopen the app.', true); }
+  fillFilters();
+  render();
+  if (SYNC_URL) {
+    $('sync').hidden = false;
+    $('codeBtn').hidden = !!getCode();
+    $('codeBtn').addEventListener('click', askCode);
+    // Picks up the others' changes on opening, on switching back to the app, and every 2 minutes while open.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+    setInterval(() => { if (!document.hidden) sync(); }, 120000);
+    if (getCode()) sync(); else askCode();
+  }
+  // Ask the browser not to clear this app's storage when space is low.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
